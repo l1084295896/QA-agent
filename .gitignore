@@ -3,5 +3,5 @@ __pycache__/
 venv/
 .env
 logs/
-data/chroma/
+data/
 .claude/settings.local.json
