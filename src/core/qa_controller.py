@@ -30,9 +30,14 @@ class QAController:
 
     def process_input(self, text: str, state: dict) -> dict:
         cmd_name, params = self.cp.parse(text)
-        if cmd_name:
-            return self._dispatch(cmd_name, params, state)
-        return self._free_text(text, state)
+        try:
+            if cmd_name:
+                return self._dispatch(cmd_name, params, state)
+            return self._free_text(text, state)
+        except Exception:
+            import traceback
+            LogUtils.error(f"Controller error:\n{traceback.format_exc()}")
+            return {"type": "error", "message": "系统内部错误，请稍后重试"}
 
     # ---- command dispatch ----
 
@@ -87,6 +92,8 @@ class QAController:
             prefix = "🎲 随机选题"
 
         q = selected[0]
+        if q is None:
+            return {"type": "error", "message": "选题异常，题目数据不完整，请检查题库一致性"}
         state["mode"] = "answering"
         state["current_question"] = q
         state["current_round"] = 1
