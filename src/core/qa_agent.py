@@ -18,8 +18,10 @@ class QAAgent:
         self._tools.append(tool(func))
 
     def _build(self) -> None:
+        # Escape curly braces so ChatPromptTemplate treats JSON examples as literal text
+        escaped_system = self.prompt_template.replace("{", "{{").replace("}", "}}")
         prompt = ChatPromptTemplate.from_messages([
-            ("system", self.prompt_template),
+            ("system", escaped_system),
             MessagesPlaceholder(variable_name="chat_history", optional=True),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
