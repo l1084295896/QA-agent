@@ -1,0 +1,14 @@
+{
+  "domains": [
+    "test_domain"
+  ],
+  "questions": {
+    "test_domain": {}
+  },
+  "metadata": {
+    "created_at": "2026-05-05",
+    "version": "1.0",
+    "question_count": 0,
+    "last_id": 1
+  }
+}

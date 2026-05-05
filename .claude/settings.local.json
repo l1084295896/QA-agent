@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init *)",
+      "Bash(git config *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(python -c ' *)",
+      "Bash(git rm *)",
+      "Bash(python -c \"from src.utils import PathUtils, FileUtils, PromptUtils; PathUtils.set_project_root\\('.'\\); print\\('imports OK'\\); print\\('FileUtils methods:', [m for m in dir\\(FileUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils methods:', [m for m in dir\\(PromptUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils load test:', PromptUtils.load\\('evaluate', standard_answer='test', user_answer='test'\\)[:80]\\)\")"
+    ]
+  }
+}
