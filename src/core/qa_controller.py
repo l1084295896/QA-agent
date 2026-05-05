@@ -69,8 +69,13 @@ class QAController:
             qs = self.bank.get_questions_by_domain(target)
             if not qs:
                 return {"type": "error", "message": f"领域 '{target}' 暂无题目"}
-            selected = random.sample(qs, min(n or 1, len(qs))) if n else qs[:1]
-            prefix = f"🎲 从 '{target}' 随机抽题" if n else f"📝 领域: {target}"
+            if n:
+                selected = random.sample(qs, min(n, len(qs)))
+                prefix = f"🎲 从 '{target}' 随机抽题"
+            else:
+                q = self._pick_unanswered(qs)
+                selected = [q]
+                prefix = f"📝 领域: {target}"
         elif target:
             # semantic search
             results = self.search.search(target)
@@ -365,6 +370,16 @@ class QAController:
         return {"type": "message", "message": f"✅ 已更新 {qid}"}
 
     # ---- helpers ----
+
+    def _pick_unanswered(self, qs: list[dict]) -> dict:
+        """Pick an unanswered question from the domain, or the least-recently-answered."""
+        answered_ids = self.history.get_answered_ids()
+        unanswered = [q for q in qs if q["id"] not in answered_ids]
+        if unanswered:
+            if len(unanswered) > 1:
+                return random.choice(unanswered)
+            return unanswered[0]
+        return qs[0]
 
     @staticmethod
     def _parse_md(content: str) -> list[dict]:

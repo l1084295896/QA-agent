@@ -102,3 +102,6 @@ class HistoryManager:
             if r["id"] == record_id or r.get("parent_id") == record_id
         ]
         return sorted(thread, key=lambda r: r["timestamp"])
+
+    def get_answered_ids(self) -> set[str]:
+        return {r["question_id"] for r in self.data["records"] if r.get("type") == "answer"}
