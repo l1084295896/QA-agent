@@ -10,6 +10,7 @@ class EmbeddingClient:
             api_key=config["api_key"],
             base_url=config.get("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
             dimensions=config.get("dimension", 1024),
+            check_embedding_ctx_length=False,
         )
 
     def embed_query(self, text: str) -> list[float]:
