@@ -2,17 +2,13 @@
 import streamlit as st
 
 from ..utils.log_utils import LogUtils
-from ..utils.path_utils import PathUtils
-from ..config.config_loader import ConfigLoader
-from ..models.model_factory import ModelFactory
-from ..core.question_bank import QuestionBank
-from ..core.search_engine import SearchEngine
 from ..core.evaluator import Evaluator
 from ..core.history_manager import HistoryManager
 from ..core.command_parser import CommandParser
 from ..core.qa_agent import QAAgent
 from ..core.qa_controller import QAController
 from ..utils.prompt_utils import PromptUtils
+from .shared_state import init_shared
 
 
 def _init_session() -> dict:
@@ -30,27 +26,7 @@ def _init_session() -> dict:
 
 
 def _build_controller():
-    PathUtils.set_project_root(".")
-    LogUtils.setup()
-
-    config = ConfigLoader()
-    factory = ModelFactory(config)
-    llm_client = factory.create_llm()
-    emb_client = factory.create_embedding()
-
-    bank = QuestionBank(config.get("storage", "storage", "question_bank") or "data/questions.json")
-    search_cfg = config.load("search").get("search", {})
-
-    search = SearchEngine(
-        emb_client,
-        chroma_path=config.get("storage", "storage", "chroma_db") or "data/chroma",
-        top_k=search_cfg.get("top_k", 20),
-        similarity_threshold=search_cfg.get("similarity_threshold", 0.5),
-        dedup_threshold=search_cfg.get("dedup_threshold", 0.9),
-    )
-    # Sync Chroma on startup
-    all_qs = bank.get_all_questions()
-    search.sync_from_bank(all_qs)
+    bank, search, llm_client, emb_client, config = init_shared()
 
     evaluator = Evaluator(llm_client)
     history = HistoryManager(config.get("storage", "storage", "history") or "data/history.json")

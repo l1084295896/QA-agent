@@ -1,38 +1,18 @@
 """Question bank management page — view, import, add, edit, delete."""
 import streamlit as st
 
-from ..utils.path_utils import PathUtils
-from ..utils.log_utils import LogUtils
 from ..utils.file_utils import FileUtils
-from ..config.config_loader import ConfigLoader
-from ..models.model_factory import ModelFactory
-from ..core.question_bank import QuestionBank
-from ..core.search_engine import SearchEngine
 from ..utils.prompt_utils import PromptUtils
 from ..core.qa_agent import QAAgent
+from .shared_state import init_shared
 import json
 import re
 import time
 
 
-def _get_controller():
-    if "manage_ctrl" not in st.session_state:
-        PathUtils.set_project_root(".")
-        LogUtils.setup()
-        config = ConfigLoader()
-        factory = ModelFactory(config)
-        llm = factory.create_llm()
-        emb = factory.create_embedding()
-        bank = QuestionBank(config.get("storage", "storage", "question_bank") or "data/questions.json")
-        sc = config.load("search").get("search", {})
-        search = SearchEngine(emb,
-            chroma_path=config.get("storage", "storage", "chroma_db") or "data/chroma",
-            top_k=sc.get("top_k", 20),
-            similarity_threshold=sc.get("similarity_threshold", 0.5),
-            dedup_threshold=sc.get("dedup_threshold", 0.9))
-        search.sync_from_bank(bank.get_all_questions())
-        st.session_state.manage_ctrl = (bank, search, llm, config)
-    return st.session_state.manage_ctrl
+def _get_bank_search_llm():
+    bank, search, llm, _, _ = init_shared()
+    return bank, search, llm
 
 
 def _parse_md(content: str) -> list[dict]:
@@ -57,7 +37,7 @@ def render():
     st.set_page_config(page_title="题库管理", page_icon="📚")
     st.title("📚 题库管理")
 
-    bank, search, llm, config = _get_controller()
+    bank, search, llm = _get_bank_search_llm()
 
     tab1, tab2, tab3 = st.tabs(["查看题库", "文件导入", "对话添加"])
 
