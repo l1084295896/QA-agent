@@ -28,12 +28,12 @@ class QAController:
         self.history = history_manager
         self.agent = qa_agent
 
-    def process_input(self, text: str, state: dict) -> dict:
+    def process_input(self, text: str, state: dict, stream: bool = False) -> dict:
         cmd_name, params = self.cp.parse(text)
         try:
             if cmd_name:
-                return self._dispatch(cmd_name, params, state)
-            return self._free_text(text, state)
+                return self._dispatch(cmd_name, params, state, stream=stream)
+            return self._free_text(text, state, stream=stream)
         except Exception:
             import traceback
             LogUtils.error(f"Controller error:\n{traceback.format_exc()}")
@@ -41,7 +41,7 @@ class QAController:
 
     # ---- command dispatch ----
 
-    def _dispatch(self, cmd: str, params: dict, state: dict) -> dict:
+    def _dispatch(self, cmd: str, params: dict, state: dict, stream: bool = False) -> dict:
         handlers = {
             "qa": self._qa, "list_domains": self._list_domains,
             "list_questions": self._list_questions, "add_file": self._add_file,
@@ -50,16 +50,21 @@ class QAController:
         }
         h = handlers.get(cmd)
         if h:
+            if stream and cmd in ("qa", "add_interactive", "edit"):
+                return h(params, state, stream=True)
             return h(params, state)
         return {"type": "error", "message": f"未知命令: /{cmd}"}
 
-    def _qa(self, p: dict, state: dict) -> dict:
+    def _qa(self, p: dict, state: dict, stream: bool = False) -> dict:
         mode = p.get("mode")
         target = p.get("target")
         n = p.get("random_count")
 
         if mode == "ask_intent":
-            msg = self.agent.invoke("用户想开始问答，请询问他想练习哪个领域或搜索什么关键词。")
+            prompt = "用户想开始问答，请询问他想练习哪个领域或搜索什么关键词。"
+            if stream:
+                return {"type": "message", "_stream": self.agent.stream(prompt)}
+            msg = self.agent.invoke(prompt)
             return {"type": "message", "message": msg}
 
         domains = self.bank.get_domains()
@@ -204,21 +209,23 @@ class QAController:
 
     # ---- free-text handlers ----
 
-    def _free_text(self, text: str, state: dict) -> dict:
+    def _free_text(self, text: str, state: dict, stream: bool = False) -> dict:
         mode = state.get("mode", "idle")
         if mode == "answering":
             return self._evaluate(text, state)
         elif mode == "follow_up":
-            return self._follow_up(text, state)
+            return self._follow_up(text, state, stream=stream)
         elif mode == "confirm_add":
             return self._confirm_add(text, state)
         elif mode == "adding_question":
-            return self._handle_adding(text, state)
+            return self._handle_adding(text, state, stream=stream)
         elif mode == "confirm_delete":
             return self._confirm_delete(text, state)
         elif mode == "editing":
             return self._handle_editing(text, state)
         else:
+            if stream:
+                return {"type": "message", "_stream": self.agent.stream(text)}
             msg = self.agent.invoke(text)
             return {"type": "message", "message": msg}
 
@@ -260,7 +267,7 @@ class QAController:
         )
         return {"type": "message", "message": msg}
 
-    def _follow_up(self, text: str, state: dict) -> dict:
+    def _follow_up(self, text: str, state: dict, stream: bool = False) -> dict:
         q = state.get("current_question", {})
         prompt = PromptUtils.load(
             "follow_up",
@@ -268,14 +275,28 @@ class QAController:
             standard_answer=q.get("answer", ""),
             follow_up_question=text,
         )
+        parent_id = state.get("current_record_id", "")
+        domain = q.get("domain", "")
+        qid = q.get("id", "")
+        round_num = state.get("current_round", 1) + 1
+        state["current_round"] = round_num
+
+        if stream:
+            def _after_follow_up(full_response):
+                self.history.add_follow_up_record(
+                    parent_id=parent_id, domain=domain, question_id=qid,
+                    question=text, user_input=text, response=full_response,
+                    round_num=round_num,
+                )
+            return {"type": "message", "_stream": self._buffered_stream(
+                self.agent.stream(prompt), _after_follow_up)}
+
         response = self.agent.invoke(prompt)
         self.history.add_follow_up_record(
-            parent_id=state.get("current_record_id", ""),
-            domain=q.get("domain", ""), question_id=q.get("id", ""),
+            parent_id=parent_id, domain=domain, question_id=qid,
             question=text, user_input=text, response=response,
-            round_num=state.get("current_round", 1) + 1,
+            round_num=round_num,
         )
-        state["current_round"] = state.get("current_round", 1) + 1
         return {"type": "message", "message": response}
 
     def _confirm_add(self, text: str, state: dict) -> dict:
@@ -294,7 +315,7 @@ class QAController:
             return {"type": "message", "message": "已取消导入"}
         return {"type": "message", "message": "请输入 **确认** 或 **取消**"}
 
-    def _handle_adding(self, text: str, state: dict) -> dict:
+    def _handle_adding(self, text: str, state: dict, stream: bool = False) -> dict:
         t = text.strip().lower()
         if t in ("取消", "cancel"):
             state["mode"] = "idle"
@@ -370,6 +391,14 @@ class QAController:
         return {"type": "message", "message": f"✅ 已更新 {qid}"}
 
     # ---- helpers ----
+
+    @staticmethod
+    def _buffered_stream(generator, on_complete):
+        buf = []
+        for chunk in generator:
+            buf.append(chunk)
+            yield chunk
+        on_complete("".join(buf))
 
     def _pick_unanswered(self, qs: list[dict]) -> dict:
         """Pick an unanswered question from the domain, or the least-recently-answered."""

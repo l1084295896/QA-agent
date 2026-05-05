@@ -34,8 +34,6 @@ class QAAgent:
 
     def invoke(self, input_text: str, chat_history: list | None = None) -> str:
         if not self._tools:
-            # No tools registered — use direct LLM call, bypass AgentExecutor
-            # This avoids MessagesPlaceholder issues with Qwen's API
             from langchain_core.messages import SystemMessage, HumanMessage
             messages = [SystemMessage(content=self.prompt_template)]
             if chat_history:
@@ -51,3 +49,16 @@ class QAAgent:
             "chat_history": chat_history or [],
         })
         return result.get("output", "")
+
+    def stream(self, input_text: str, chat_history: list | None = None):
+        if not self._tools:
+            from langchain_core.messages import SystemMessage, HumanMessage
+            messages = [SystemMessage(content=self.prompt_template)]
+            if chat_history:
+                messages.extend(chat_history)
+            messages.append(HumanMessage(content=input_text))
+            for chunk in self.llm.stream(messages):
+                if chunk.content:
+                    yield chunk.content
+        else:
+            yield self.invoke(input_text, chat_history)

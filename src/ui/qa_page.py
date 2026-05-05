@@ -62,23 +62,32 @@ def render():
     if not user_input:
         return
 
-    # Add user message
+    # Display user message immediately
+    with st.chat_message("human"):
+        st.markdown(user_input)
+
+    # Process with streaming
+    with st.chat_message("assistant"):
+        with st.spinner("AI 思考中…"):
+            try:
+                result = ctrl.process_input(user_input, state, stream=True)
+            except Exception as e:
+                LogUtils.error(f"Controller error: {e}")
+                result = {"type": "error", "message": "系统内部错误，请稍后重试"}
+
+        if "_stream" in result:
+            response = st.write_stream(result["_stream"])
+        elif result["type"] == "error":
+            response = f"❌ {result['message']}"
+            st.error(result["message"])
+        elif result["type"] == "question":
+            response = result["message"]
+            st.markdown(response)
+        else:
+            response = result.get("message", "")
+            if response:
+                st.markdown(response)
+
+    # Save to history for display on next interaction
     state["messages"].append({"role": "human", "content": user_input})
-
-    # Process
-    try:
-        result = ctrl.process_input(user_input, state)
-    except Exception as e:
-        LogUtils.error(f"Controller error: {e}")
-        result = {"type": "error", "message": "系统内部错误，请稍后重试"}
-
-    # Format response
-    if result["type"] == "error":
-        content = f"❌ {result['message']}"
-    elif result["type"] == "question":
-        content = result["message"]
-    else:
-        content = result["message"]
-
-    state["messages"].append({"role": "assistant", "content": content})
-    st.rerun()
+    state["messages"].append({"role": "assistant", "content": response})

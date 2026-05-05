@@ -16,5 +16,10 @@ class LLMClient:
         response = self._llm.invoke(prompt)
         return response.content
 
+    def stream(self, prompt: str):
+        for chunk in self._llm.stream(prompt):
+            if chunk.content:
+                yield chunk.content
+
     def get_llm(self):
         return self._llm
