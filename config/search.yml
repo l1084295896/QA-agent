@@ -1,0 +1,4 @@
+search:
+  top_k: 20
+  similarity_threshold: 0.5
+  dedup_threshold: 0.9

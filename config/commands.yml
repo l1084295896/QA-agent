@@ -1,0 +1,40 @@
+commands:
+  qa:
+    trigger: /Q
+    description: 开启问答模式
+    usage: |
+      /Q                        - Agent 询问意图
+      /Q <领域名>               - 从该领域出题
+      /Q <领域名> random        - 从该领域随机 1 题
+      /Q <领域名> random N      - 从该领域随机 N 题
+      /Q <关键词>               - 语义搜索最相关 1 题
+      /Q <关键词> random N      - 语义搜索 Top-K，随机 N 题
+      /Q random N               - 从全题库随机 N 题
+  list_domains:
+    trigger: /list_domains
+    description: 查看所有领域
+  list_questions:
+    trigger: /list_questions
+    description: 查看某领域所有题目
+    usage: /list_questions <领域名>
+  add_file:
+    trigger: /add_file
+    description: 从 Markdown 文件导入题目
+    usage: /add_file <文件路径>
+  add_interactive:
+    trigger: /add_interactive
+    description: 通过对话添加题目（LLM 整理 → 用户确认）
+  edit:
+    trigger: /edit
+    description: 编辑题目
+    usage: /edit <题目ID>
+  delete:
+    trigger: /delete
+    description: 删除题目
+    usage: /delete <题目ID>
+  help:
+    trigger: /help
+    description: 显示帮助信息
+  exit:
+    trigger: /exit
+    description: 退出当前模式

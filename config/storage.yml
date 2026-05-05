@@ -1,0 +1,7 @@
+storage:
+  question_bank: data/questions.json
+  history: data/history.json
+  chroma_db: data/chroma
+  temp_dir: data/temp
+  log_dir: logs
+  log_file: logs/app.log
