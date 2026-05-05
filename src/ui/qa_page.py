@@ -1,4 +1,4 @@
-"""Home page — Q&A chat interface."""
+"""首页 — 问答聊天界面（Home page — Q&A chat interface）."""
 import streamlit as st
 
 from ..utils.log_utils import LogUtils
@@ -12,12 +12,13 @@ from .shared_state import init_shared
 
 
 def _init_session() -> dict:
+    """初始化本页面的 session_state 变量，包括模式、消息列表、当前题目等."""
     defaults = {
-        "mode": "idle",
-        "messages": [],
-        "current_question": None,
-        "current_record_id": None,
-        "current_round": 0,
+        "mode": "idle",              # 当前模式: idle / questioning / following_up
+        "messages": [],               # 对话消息历史
+        "current_question": None,     # 当前正在回答的题目
+        "current_record_id": None,    # 当前答题记录 ID
+        "current_round": 0,           # 当前追问轮次
     }
     for k, v in defaults.items():
         if k not in st.session_state:
@@ -26,6 +27,8 @@ def _init_session() -> dict:
 
 
 def _build_controller():
+    """组装 QAController：获取共享实例，注入各依赖组件，构建 agent 并返回."""
+    # 从 shared_state 获取全局共享的 bank、search、LLM、embedding、config
     bank, search, llm_client, emb_client, config = init_shared()
 
     evaluator = Evaluator(llm_client)
@@ -39,10 +42,11 @@ def _build_controller():
 
 
 def render():
+    """渲染首页问答聊天界面."""
     st.set_page_config(page_title="Q&A 学习助手", page_icon="📝")
     state = _init_session()
 
-    # Build controller once
+    # 只初始化一次 controller，存入 st.session_state 避免重复创建
     if "controller" not in st.session_state:
         try:
             st.session_state.controller = _build_controller()
@@ -52,21 +56,22 @@ def render():
 
     ctrl: QAController = st.session_state.controller
 
-    # Display chat history
+    # ---- 渲染历史对话消息 ----
     for msg in state["messages"]:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
 
-    # Chat input
+    # ---- 用户输入框 ----
     user_input = st.chat_input("输入命令或回答…（/help 查看帮助）")
     if not user_input:
         return
 
-    # Display user message immediately
+    # 立即显示用户消息
     with st.chat_message("human"):
         st.markdown(user_input)
 
-    # Process with streaming
+    # ---- 流式处理用户输入 ----
+    # ctrl.process_input 返回 dict，若含 _stream 字段则为流式输出
     with st.chat_message("assistant"):
         with st.spinner("AI 思考中…"):
             try:
@@ -75,7 +80,9 @@ def render():
                 LogUtils.error(f"Controller error: {e}")
                 result = {"type": "error", "message": "系统内部错误，请稍后重试"}
 
+        # 根据返回类型渲染不同内容
         if "_stream" in result:
+            # 流式输出：使用 st.write_stream 逐 token 渲染
             response = st.write_stream(result["_stream"])
         elif result["type"] == "error":
             response = f"❌ {result['message']}"
@@ -88,6 +95,6 @@ def render():
             if response:
                 st.markdown(response)
 
-    # Save to history for display on next interaction
+    # 将本轮对话追加到消息历史，供下次渲染时展示
     state["messages"].append({"role": "human", "content": user_input})
     state["messages"].append({"role": "assistant", "content": response})

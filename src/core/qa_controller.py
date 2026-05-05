@@ -1,3 +1,5 @@
+"""问答控制器：统一路由用户输入，调度命令处理、自由对话、评分和追问流程。"""
+
 import json
 import random
 import re
@@ -14,13 +16,34 @@ from .qa_agent import QAAgent
 
 
 class QAController:
-    """Routes all user input: commands → direct handlers; free text → Agent/mode handlers."""
+    """问答系统总控：将用户输入分为命令和自由文本两路，通过状态机驱动交互流程。
+
+    状态机模式（state["mode"]）：
+    - idle: 空闲，自由文本交由 Agent 聊天
+    - answering: 等待用户作答
+    - follow_up: 等待追问或下一题
+    - confirm_add / confirm_delete: 等待确认操作
+    - adding_question: 等待 LLM 格式化题目描述
+    - editing: 等待编辑输入
+
+    所有方法返回统一的 dict：{"type": "...", "message": "...", ...}
+    """
 
     def __init__(
         self, command_parser: CommandParser, question_bank: QuestionBank,
         search_engine: SearchEngine, evaluator: Evaluator,
         history_manager: HistoryManager, qa_agent: QAAgent,
     ):
+        """注入所有核心组件依赖。
+
+        Args:
+            command_parser: 命令解析器
+            question_bank: 题库
+            search_engine: 语义搜索引擎
+            evaluator: 评分器
+            history_manager: 历史记录管理器
+            qa_agent: LangChain Agent
+        """
         self.cp = command_parser
         self.bank = question_bank
         self.search = search_engine
@@ -29,6 +52,16 @@ class QAController:
         self.agent = qa_agent
 
     def process_input(self, text: str, state: dict, stream: bool = False) -> dict:
+        """顶层入口：解析命令或路由到自由文本处理器。
+
+        Args:
+            text: 用户输入
+            state: 会话状态字典（由上层传入，会被就地修改）
+            stream: 是否启用流式输出
+
+        Returns:
+            统一响应字典，type 字段表示响应类型（message/error/question）
+        """
         cmd_name, params = self.cp.parse(text)
         try:
             if cmd_name:
@@ -42,6 +75,10 @@ class QAController:
     # ---- command dispatch ----
 
     def _dispatch(self, cmd: str, params: dict, state: dict, stream: bool = False) -> dict:
+        """命令分发：根据命令名路由到对应的 handler 方法。
+
+        部分命令（qa, add_interactive, edit）支持流式输出，其他命令仅同步返回。
+        """
         handlers = {
             "qa": self._qa, "list_domains": self._list_domains,
             "list_questions": self._list_questions, "add_file": self._add_file,
@@ -56,6 +93,14 @@ class QAController:
         return {"type": "error", "message": f"未知命令: /{cmd}"}
 
     def _qa(self, p: dict, state: dict, stream: bool = False) -> dict:
+        """处理 /qa 命令：根据参数选择问意图 / 领域匹配 / 语义搜索 / 随机抽题四种模式。
+
+        优先级：
+        1. mode=ask_intent：无参 → LLM 询问用户想练习的领域
+        2. 领域精确匹配：target 在 domains 列表中 → 直接筛选
+        3. 语义搜索：target 不在领域列表 → Chroma 搜索
+        4. 随机：无 target → 全库随机
+        """
         mode = p.get("mode")
         target = p.get("target")
         n = p.get("random_count")
@@ -114,6 +159,7 @@ class QAController:
         }
 
     def _list_domains(self, p: dict, state: dict) -> dict:
+        """列出所有领域及每个领域下的题目数量。"""
         ds = self.bank.get_domains()
         if not ds:
             return {"type": "message", "message": "暂无领域，请先添加题目"}
@@ -124,6 +170,7 @@ class QAController:
         return {"type": "message", "message": "\n".join(lines)}
 
     def _list_questions(self, p: dict, state: dict) -> dict:
+        """列出指定领域下的所有题目（含 ID 和问题前 60 字符）。"""
         domain = p.get("domain")
         if not domain:
             return {"type": "error", "message": "用法: /list_questions <领域名>"}
@@ -136,6 +183,7 @@ class QAController:
         return {"type": "message", "message": "\n".join(lines)}
 
     def _add_file(self, p: dict, state: dict) -> dict:
+        """从 Markdown 文件批量导入题目：解析 → 去重 → 进入确认状态。"""
         path = p.get("file_path")
         if not path:
             return {"type": "error", "message": "用法: /add_file <文件路径>"}
@@ -164,11 +212,13 @@ class QAController:
         return {"type": "message", "message": "\n".join(lines)}
 
     def _add_interactive(self, p: dict, state: dict) -> dict:
+        """进入交互式添加模式：让用户描述题目，由 LLM 整理为标准格式。"""
         state["mode"] = "adding_question"
         state["pending_add"] = None
         return {"type": "message", "message": "📝 请描述你想添加的题目（问题和答案），我会整理成标准格式"}
 
     def _edit(self, p: dict, state: dict) -> dict:
+        """进入编辑模式：展示题目当前内容，等待用户提交修改。"""
         qid = p.get("question_id")
         if not qid:
             return {"type": "error", "message": "用法: /edit <题目ID>"}
@@ -180,6 +230,7 @@ class QAController:
         return {"type": "message", "message": f"📝 编辑 {qid}:\n\n领域: {q['domain']}\n问题: {q['question']}\n答案: {q['answer']}\n\n请发送修改后的内容（格式: 领域: xxx, 问题: xxx, 答案: xxx）或 /exit 取消"}
 
     def _delete(self, p: dict, state: dict) -> dict:
+        """进入删除确认状态：展示题目信息，等待用户确认删除。"""
         qid = p.get("question_id")
         if not qid:
             return {"type": "error", "message": "用法: /delete <题目ID>"}
@@ -191,6 +242,7 @@ class QAController:
         return {"type": "message", "message": f"⚠ 确认删除 {qid}?\n领域: {q['domain']}\n问题: {q['question']}\n\n输入 **确认** 删除，**取消** 放弃"}
 
     def _help(self, p: dict, state: dict) -> dict:
+        """列出所有可用命令及用法说明。"""
         cmds = self.cp.get_command_list()
         lines = ["📖 **可用命令:**\n"]
         for c in cmds:
@@ -200,6 +252,7 @@ class QAController:
         return {"type": "message", "message": "\n".join(lines)}
 
     def _exit(self, p: dict, state: dict) -> dict:
+        """退出当前模式：清除所有模式相关的 state 字段，回到 idle 状态。"""
         for k in ("mode", "current_question", "current_record_id", "current_round",
                    "pending_add", "edit_target", "delete_target"):
             state.pop(k, None)
@@ -210,6 +263,10 @@ class QAController:
     # ---- free-text handlers ----
 
     def _free_text(self, text: str, state: dict, stream: bool = False) -> dict:
+        """自由文本路由：根据当前 mode 分发到对应的处理器。
+
+        状态机核心——所有非命令输入都经过此处路由。
+        """
         mode = state.get("mode", "idle")
         if mode == "answering":
             return self._evaluate(text, state)
@@ -230,6 +287,7 @@ class QAController:
             return {"type": "message", "message": msg}
 
     def _evaluate(self, user_answer: str, state: dict) -> dict:
+        """评估用户答案：调用 Evaluator 评分，写入历史，进入 follow_up 状态。"""
         q = state.get("current_question")
         if not q:
             state["mode"] = "idle"
@@ -268,6 +326,10 @@ class QAController:
         return {"type": "message", "message": msg}
 
     def _follow_up(self, text: str, state: dict, stream: bool = False) -> dict:
+        """处理追问：将用户追问文本和当前题目上下文拼接后交给 Agent，记录追问历史。
+
+        流式模式下，通过 _buffered_stream 在流完成后回调写入历史记录。
+        """
         q = state.get("current_question", {})
         prompt = PromptUtils.load(
             "follow_up",
@@ -300,6 +362,7 @@ class QAController:
         return {"type": "message", "message": response}
 
     def _confirm_add(self, text: str, state: dict) -> dict:
+        """处理文件导入的确认/取消：确认后将解析到的题目逐条写入题库和索引。"""
         t = text.strip().lower()
         if t in ("确认", "yes", "y"):
             items = state.get("pending_add", [])
@@ -316,6 +379,13 @@ class QAController:
         return {"type": "message", "message": "请输入 **确认** 或 **取消**"}
 
     def _handle_adding(self, text: str, state: dict, stream: bool = False) -> dict:
+        """交互式添加流程：接收用户描述 → LLM 格式化 → 确认/取消/强制确认。
+
+        支持三个确认级别：
+        - 确认：添加前做去重检查，有重复时提示需要「强制确认」
+        - 取消：退出添加流程
+        - 强制确认：跳过去重检查直接添加
+        """
         t = text.strip().lower()
         if t in ("取消", "cancel"):
             state["mode"] = "idle"
@@ -352,6 +422,7 @@ class QAController:
         return {"type": "message", "message": f"模型整理结果:\n\n领域: {item.get('domain')}\n问题: {item.get('question')}\n答案: {item.get('answer')}\n\n输入 **确认** 添加，**取消** 放弃"}
 
     def _confirm_delete(self, text: str, state: dict) -> dict:
+        """处理删除确认：确认后从索引和题库中同时移除题目。"""
         t = text.strip().lower()
         if t in ("确认", "yes", "y"):
             qid = state.get("delete_target")
@@ -367,6 +438,7 @@ class QAController:
         return {"type": "message", "message": "请输入 **确认** 或 **取消**"}
 
     def _handle_editing(self, text: str, state: dict) -> dict:
+        """处理编辑输入：解析用户提交的「领域: 问题: 答案:」格式，更新题库和索引。"""
         t = text.strip().lower()
         if t in ("取消", "cancel"):
             state["mode"] = "idle"
@@ -394,6 +466,14 @@ class QAController:
 
     @staticmethod
     def _buffered_stream(generator, on_complete):
+        """缓冲流式生成器：收集所有 chunk 后回调 on_complete。
+
+        用于流式追问场景：先逐块输出 LLM 回复，全部输出完成后将完整文本写入历史。
+
+        Args:
+            generator: LLM 流式生成器，每次 yield 一个字符串块
+            on_complete: 回调函数，接收拼接后的完整字符串
+        """
         buf = []
         for chunk in generator:
             buf.append(chunk)
@@ -401,7 +481,13 @@ class QAController:
         on_complete("".join(buf))
 
     def _pick_unanswered(self, qs: list[dict]) -> dict:
-        """Pick an unanswered question from the domain, or the least-recently-answered."""
+        """从未作答的题目中选一题，若全部答过则返回首题。
+
+        算法：
+        1. 从历史记录中获取已作答的题目 ID 集合
+        2. 过滤出未作答的题目
+        3. 有多道未答 → 随机选一道；仅一道 → 直接返回；全部答过 → 返回列表首题（最久远的）
+        """
         answered_ids = self.history.get_answered_ids()
         unanswered = [q for q in qs if q["id"] not in answered_ids]
         if unanswered:
@@ -412,16 +498,27 @@ class QAController:
 
     @staticmethod
     def _parse_md(content: str) -> list[dict]:
+        """解析 Markdown 题目文件，提取领域、问题、答案。
+
+        文件格式约定：
+        - ## 领域名  → 切换当前领域
+        - 问题: xxx  /  问题：xxx  → 问题文本（支持中英文冒号）
+        - 答案: xxx  /  答案：xxx  → 答案文本
+        - ---  → 题目分隔符（三个或更多连字符）
+        """
         questions = []
         current_domain = "默认"
+        # 按 ---分隔符 切分为独立块，每个块可能是一个领域声明或一道题目
         for block in re.split(r'\n---+\n', content):
             block = block.strip()
             if not block:
                 continue
+            # 检测 ## 二级标题 → 切换当前领域
             dm = re.match(r'^##\s+(.+)', block)
             if dm:
                 current_domain = dm.group(1).strip()
                 continue
+            # 在一个块内同时匹配问题和答案（块内顺序不敏感）
             qm = re.search(r'问题[:：]\s*(.+)', block)
             am = re.search(r'答案[:：]\s*(.+)', block)
             if qm and am:
@@ -434,6 +531,11 @@ class QAController:
 
     @staticmethod
     def _parse_json_response(response: str) -> dict:
+        """从 LLM 返回文本中提取 JSON 对象。
+
+        使用正则 \{[\s\S]*\} 贪婪匹配最外层 JSON 块，即使 LLM 在 JSON
+        前后附加了说明文字也能提取。提取失败时返回降级结果。
+        """
         m = re.search(r'\{[\s\S]*\}', response)
         if m:
             return json.loads(m.group())
@@ -441,6 +543,11 @@ class QAController:
 
     @staticmethod
     def _parse_edit_input(text: str) -> dict:
+        """解析编辑输入：支持「领域: xxx, 问题: xxx, 答案: xxx」格式。
+
+        用逗号（中英文均可）分割各字段，再对每个字段匹配「字段名: 值」格式。
+        返回的 key 统一为英文名：domain / question / answer。
+        """
         result = {}
         for part in re.split(r'[,，]\s*', text):
             for key in ("领域", "问题", "答案"):

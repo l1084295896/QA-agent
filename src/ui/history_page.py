@@ -1,4 +1,4 @@
-"""History records page — filter, view details, follow-up threads."""
+"""历史记录页面 — 筛选、查看详情、显示追问线程（History records page）."""
 import streamlit as st
 
 from ..utils.path_utils import PathUtils
@@ -8,6 +8,7 @@ from ..core.history_manager import HistoryManager
 
 
 def _get_history():
+    """懒加载 HistoryManager 单例，存入 st.session_state 以跨 rerun 复用."""
     if "history_mgr" not in st.session_state:
         PathUtils.set_project_root(".")
         LogUtils.setup()
@@ -18,12 +19,13 @@ def _get_history():
 
 
 def render():
+    """渲染历史记录页面."""
     st.set_page_config(page_title="历史记录", page_icon="📊")
     st.title("📊 历史记录")
 
     hm: HistoryManager = _get_history()
 
-    # Filters
+    # ---- 筛选栏：领域 / 分数段 / 关键词 ----
     col1, col2, col3 = st.columns(3)
     with col1:
         records = hm.get_records()
@@ -34,7 +36,7 @@ def render():
     with col3:
         keyword = st.text_input("关键词搜索")
 
-    # Apply filters
+    # 解析分数段为 min/max
     min_s, max_s = None, None
     if score_range != "全部":
         if "A" in score_range: min_s, max_s = 90, 100
@@ -42,13 +44,14 @@ def render():
         elif "C" in score_range: min_s, max_s = 60, 69
         elif "D" in score_range: min_s, max_s = 0, 59
 
+    # 应用筛选条件查询历史记录
     filtered = hm.get_records(
         domain=domain_filter if domain_filter != "全部" else None,
         min_score=min_s, max_score=max_s,
         keyword=keyword if keyword else None,
     )
 
-    # Only show 'answer' type in main list
+    # 主列表仅展示 answer 类型的记录
     answer_records = [r for r in filtered if r.get("type") == "answer"]
 
     if not answer_records:
@@ -57,6 +60,7 @@ def render():
 
     st.markdown(f"共 {len(answer_records)} 条记录")
 
+    # ---- 逐条渲染记录详情 ----
     for r in answer_records:
         with st.expander(
             f"{r['timestamp'][:16]}  |  {r.get('domain', '')}  |  {r.get('score', '?')}分  |  {r.get('rating', '')}"
@@ -72,7 +76,7 @@ def render():
             st.markdown(f"- 深度: {ev.get('depth', 'N/A')}")
             st.markdown(f"**解释:** {r.get('explanation', '')}")
 
-            # Follow-up thread
+            # ---- 追问线程：展示与该题目关联的追问记录 ----
             thread = hm.get_thread(r["id"])
             follow_ups = [t for t in thread if t.get("type") == "follow_up"]
             if follow_ups:

@@ -7,7 +7,21 @@
       "Bash(git commit *)",
       "Bash(python -c ' *)",
       "Bash(git rm *)",
-      "Bash(python -c \"from src.utils import PathUtils, FileUtils, PromptUtils; PathUtils.set_project_root\\('.'\\); print\\('imports OK'\\); print\\('FileUtils methods:', [m for m in dir\\(FileUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils methods:', [m for m in dir\\(PromptUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils load test:', PromptUtils.load\\('evaluate', standard_answer='test', user_answer='test'\\)[:80]\\)\")"
+      "Bash(python -c \"from src.utils import PathUtils, FileUtils, PromptUtils; PathUtils.set_project_root\\('.'\\); print\\('imports OK'\\); print\\('FileUtils methods:', [m for m in dir\\(FileUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils methods:', [m for m in dir\\(PromptUtils\\) if not m.startswith\\('_'\\)]\\); print\\('PromptUtils load test:', PromptUtils.load\\('evaluate', standard_answer='test', user_answer='test'\\)[:80]\\)\")",
+      "Bash(ls -la README.md)",
+      "Bash(ls -la data/.gitkeep)",
+      "Bash(ls -la logs/.gitkeep)",
+      "Bash(tasklist)",
+      "Bash(taskkill /PID 19692 /F)",
+      "Bash(taskkill /F /IM streamlit.exe)",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(cmd //c \"del /f /q G:\\\\qa-agent-lpy\\\\data\\\\chroma\\\\* & rmdir /q G:\\\\qa-agent-lpy\\\\data\\\\chroma\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(handle)",
+      "Bash(powershell *)",
+      "Bash(git reset *)",
+      "Bash(echo \"data/chroma/\")",
+      "Bash(echo \".claude/settings.local.json\")"
     ]
   }
 }

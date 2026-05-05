@@ -1,3 +1,4 @@
+# 日志工具模块 —— 控制台 + 文件双通道日志，支持 DEBUG/INFO/WARNING/ERROR 级别。
 import logging
 import sys
 from pathlib import Path
@@ -6,10 +7,22 @@ from pathlib import Path
 class LogUtils:
     """Custom logger with console + file output, supporting DEBUG/INFO/WARNING/ERROR levels."""
 
+    # 单例 Logger 实例，整个应用共享同一个 logger。
     _logger: logging.Logger | None = None
 
     @classmethod
     def setup(cls, log_dir: str = "logs", log_file: str = "app.log", level: str = "DEBUG") -> logging.Logger:
+        """初始化日志系统：创建控制台 handler（INFO 级别）和文件 handler（DEBUG 级别）。
+
+        Args:
+            log_dir: 日志文件存放目录，默认为 logs/。
+            log_file: 日志文件名，默认为 app.log。
+            level: 日志级别，默认为 DEBUG。
+
+        Returns:
+            配置完成的 logging.Logger 实例（单例，仅首次调用时创建）。
+        """
+        # 单例检查：已有实例则直接返回，避免重复创建 handler 导致日志重复输出。
         if cls._logger is not None:
             return cls._logger
 
@@ -35,10 +48,12 @@ class LogUtils:
 
     @classmethod
     def _get(cls) -> logging.Logger:
+        """获取 Logger 实例，若未初始化则自动调用 setup() 进行默认初始化。"""
         if cls._logger is None:
             cls.setup()
         return cls._logger
 
+    # 以下为便捷方法，对应标准 logging 的四个级别，无需手动调用 _get()。
     @classmethod
     def debug(cls, msg: str) -> None: cls._get().debug(msg)
     @classmethod
