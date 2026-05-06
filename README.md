@@ -10,6 +10,7 @@
 - **语义搜索** — 基于 Chroma 向量数据库的关键词智能搜索
 - **历史记录** — 按线程组织的答题历史，支持领域/分数/关键词筛选
 - **流式输出** — AI 回复实时逐字显示，交互更流畅
+- **Agent 工具** — 自然语言查询学习统计、智能推荐练习方向、语义搜索相关题目
 
 ## 技术栈
 
@@ -52,6 +53,7 @@ qa-agent/
 │   ├── core/
 │   │   ├── qa_controller.py              # 问答流程总控 (核心协调器)
 │   │   ├── qa_agent.py                   # LangChain Agent 封装
+│   │   ├── agent_tools.py                # Agent 工具函数（统计/推荐/搜索）
 │   │   ├── question_bank.py              # 题库 CRUD + JSON 持久化
 │   │   ├── search_engine.py              # 语义搜索 (Chroma)
 │   │   ├── evaluator.py                  # LLM 评分引擎
@@ -150,6 +152,19 @@ streamlit run main.py
 |------|------|
 | `/help` | 显示帮助信息 |
 | `/exit` | 退出当前模式（答题/追问），回到空闲状态 |
+
+## 自然语言交互 (Agent Tools)
+
+在空闲状态下，除了斜杠命令，你还可以用自然语言与 AI 对话。AI 会自动调用以下工具查询数据：
+
+| 工具 | 触发方式 | 功能 |
+|------|---------|------|
+| 学习统计 | "我学得怎么样？" "看看我的学习数据" | 总答题数、平均分、各领域表现、最近趋势 |
+| 练习推荐 | "推荐我练什么？" "接下来做什么？" | 分析薄弱领域，智能推荐练习方向 |
+| 题目搜索 | "有没有关于装饰器的题？" | 语义搜索相关题目 |
+| 领域概览 | "各领域掌握得如何？" "Python有哪些题？" | 领域题目数、已答数、平均分 |
+
+> 这些工具只读，不会修改题库或历史数据。命令系统（`/Q`、`/list_domains` 等）在自然语言模式下同样可用。
 
 ## 页面导航
 
@@ -277,14 +292,59 @@ Streamlit 侧边栏提供三个页面：
 
 ## 技术要点
 
-1. **混合架构** — 确定性操作走 CommandParser 直接处理，开放交互走 LangChain Agent
-2. **Qwen API 兼容** — 针对 Qwen DashScope API 做了多项兼容处理：
-   - `ChatPromptTemplate` 花括号转义
-   - 禁用 `agent_scratchpad` MessagesPlaceholder（直接使用 SystemMessage + HumanMessage）
-   - 禁用 tiktoken 上下文检查（Qwen Embedding API 不接受 token ID 输入）
-3. **流式输出** — LLM 响应通过 `st.write_stream()` 实时逐字渲染
-4. **跨页面状态共享** — QuestionBank 和 SearchEngine 通过 `st.session_state` 跨页面共享单例
-5. **智能选题** — `/Q <领域>` 通过历史记录追踪已答题，优先选择未答题目
+### 架构设计
+
+**混合路由** — 用户输入按类型走不同路径：
+- `/Q`、`/list_domains` 等确定性命令 → `CommandParser` 直接解析参数执行函数，快速可靠
+- 自然语言对话、追问等开放交互 → `QAAgent` + Agent Tools，灵活智能
+
+**双 Agent 设计** — 两个 `QAAgent` 实例分别服务不同场景：
+
+| Agent | 工具 | 用途 |
+|-------|------|------|
+| `agent` | 无 | 结构化任务：意图分类（`/Q` 无参）、JSON 格式化（`/add_interactive`） |
+| `agent_tools` | 4 个只读工具 | 自由对话：自然语言查询统计/推荐/搜索、追问 |
+
+拆分的原因是：工具启用后 Agent 走工具调用循环，会产生额外的 LLM 推理轮次和消息上下文。结构化任务（如"把这段话整理为 JSON"）不需要工具，用无工具的 Agent 更快、更准确。
+
+### Qwen API 兼容性
+
+项目使用阿里云百炼的 Qwen DashScope API（OpenAI 兼容模式）。虽然接口格式兼容，但 SDK 和模型行为在多处存在差异，以下是踩过的坑和解决方案：
+
+| 问题 | 表现 | 根因 | 方案 |
+|------|------|------|------|
+| 花括号转义 | `ChatPromptTemplate` 抛出 `KeyError` | Prompt 中的 JSON 示例 `{"score": ...}` 被当作模板变量 | 传入前将 `{` `}` 替换为 `{{` `}}` |
+| AgentExecutor 报错 | API 返回 "contents is neither str nor list of str" | LangChain Agent 向 API 发送多模态消息结构 | 无工具时绕过 AgentExecutor，直接组装字符串消息 |
+| Embedding 报错 | 同上错误信息 | tiktoken 将文本预处理为整数 token ID 列表 | `check_embedding_ctx_length=False` |
+| Agent 不调用工具 | 模型回复文字却不执行工具 | Qwen 不返回 OpenAI function calling 格式的 `tool_calls` | 自建 XML 标记循环：模型输出 `<tool>` `<args>` 标记，代码解析执行 |
+| 跨页面数据不同步 | 题库管理页添加的题目，问答页看不到 | Streamlit 多页面各自创建独立实例 | `st.session_state` 做单例缓存，所有页面共享同一个 `QuestionBank` |
+
+> 详细排查过程见 [docs/issues-and-solutions.md](docs/issues-and-solutions.md)
+
+**自定义工具调用循环** — 这是最核心的解决方案。LangChain 提供了三种 Agent 类型，但都对 Qwen 不兼容：
+- `create_openai_tools_agent`：把工具定义放进 API 请求的 `tools` 字段，期待模型返回 `tool_calls`。Qwen 返回的是自然语言文本。
+- `create_react_agent`：用文本格式 `Thought → Action → Final Answer:` 驱动。Qwen 能正确调用工具，但收到结果后直接输出自然语言回答，不写 `Final Answer:` 前缀，导致解析器一直认为未完成。
+
+最终方案是放弃 LangChain AgentExecutor，在 `QAAgent.invoke()` 中实现了一个简洁的调用循环：
+
+```
+用户输入 → LLM 判断是否需要工具
+  ├─ 不需要 → 直接返回回答
+  └─ 需要 → LLM 输出 <tool>xxx</tool><args>xxx</args>
+       → 代码解析执行工具 → 结果反馈给 LLM → LLM 生成最终回答
+```
+
+### 状态管理
+
+Streamlit 的 `st.session_state` 承担了两层角色：
+1. **跨页面共享** — `QuestionBank` 和 `SearchEngine` 通过 `init_shared()` 存入 session_state，三个 Streamlit 页面共享同一实例，数据变更实时同步
+2. **会话状态机** — `mode` 字段（idle → answering → follow_up）驱动交互流程，`current_question`、`current_record_id` 等传递上下文
+
+### 其他优化
+
+- **流式输出** — 无工具模式下 `LLM.stream()` + `st.write_stream()` 实时逐字渲染
+- **智能选题** — `/Q <领域>` 从 `HistoryManager.get_answered_ids()` 获取已答题集合，优先从未答题中随机选择
+- **Chroma 增量同步** — 启动时 `sync_from_bank()` 对比题库 ID 与索引 ID，增量添加/删除，避免全量重建
 
 ## 依赖清单
 

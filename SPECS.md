@@ -1,7 +1,7 @@
 # Q&A Agent 项目设计文档
 
 **日期:** 2026-05-05
-**版本:** v2.0
+**版本:** v2.1 (Agent Tools 已实现)
 
 ---
 
@@ -61,6 +61,10 @@
 
 ### 3.2 Agent Tools
 
+Agent 工具分为两类：
+
+**A. 确定性工具（已通过 CommandParser + 状态机实现）**
+
 | Tool | 用途 | 调用场景 |
 |------|------|----------|
 | `select_question_by_domain` | 从指定领域选题 | `/Q domain` |
@@ -68,6 +72,17 @@
 | `evaluate_answer` | 评分并生成解析 | 用户提交答案后 |
 | `add_question_tool` | LLM 整理题目格式 | `/add_interactive` |
 | `handle_follow_up` | 基于标准答案回答追问 | 答题后的追问 |
+
+**B. 对话增强工具（Agent 自主调用，自然语言触发）**
+
+| Tool | 参数 | 功能 | 实现文件 |
+|------|------|------|----------|
+| `get_learning_stats` | 无 | 总答题数、平均分、各领域表现、最近趋势 | `agent_tools.py` |
+| `recommend_practice` | 无 | 分析薄弱+未练习领域，智能推荐 | `agent_tools.py` |
+| `find_related_questions` | `query: str` | 语义搜索 top 5 相关题目 | `agent_tools.py` |
+| `get_domain_summary` | `domain: str` (可选) | 领域题目数、已答数、均分 | `agent_tools.py` |
+
+**架构说明：** 采用双 Agent 设计 — `agent`（无工具）处理结构化任务（意图分类、JSON 格式化），`agent_tools`（带工具）处理自由对话和追问，通过 `QAController` 按场景路由。
 
 ---
 
@@ -115,6 +130,7 @@ qa-agent/
 │   │   ├── history_manager.py      # 历史记录管理
 │   │   ├── command_parser.py       # 命令解析器
 │   │   ├── qa_agent.py             # LangChain Agent（Tools 定义）
+│   │   ├── agent_tools.py           # Agent 工具函数（统计/推荐/搜索）
 │   │   └── qa_controller.py        # 问答流程总控
 │   └── ui/                         # Streamlit 页面渲染（薄封装）
 │       ├── __init__.py
@@ -682,8 +698,9 @@ Streamlit 原生多页面，侧边栏自动显示：
 | Evaluator | `src/core/evaluator.py` | 调用 LLM 评分，解析 JSON 结果 |
 | HistoryManager | `src/core/history_manager.py` | 历史记录增删查，按线程组织 |
 | CommandParser | `src/core/command_parser.py` | 解析斜杠命令，提取参数，校验 |
-| QAAgent | `src/core/qa_agent.py` | LangChain Agent 定义，Tools 实现 |
-| QAController | `src/core/qa_controller.py` | 流程总控，协调各模块，模式管理 |
+| QAAgent | `src/core/qa_agent.py` | LangChain Agent 定义，Tools 注册机制 |
+| AgentTools | `src/core/agent_tools.py` | Agent 工具工厂（统计/推荐/搜索/概览） |
+| QAController | `src/core/qa_controller.py` | 流程总控，协调各模块，双 Agent 路由 |
 
 ---
 
@@ -727,7 +744,7 @@ python-dotenv>=1.0
 - [ ] 评分引擎：LLM 评分 + JSON 解析
 - [ ] 历史记录：增删查 + 线程组织
 - [ ] 命令解析器：斜杠命令识别 + 参数提取
-- [ ] QA Agent：LangChain Agent + Tools
+- [x] QA Agent：LangChain Agent + Tools
 - [ ] QA 控制器：流程编排 + 模式管理
 - [ ] 问答页面：Streamlit 聊天界面
 - [ ] 题库管理页面：Tab 切换 + 查看/编辑/删除/导入/添加
