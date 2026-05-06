@@ -33,6 +33,7 @@ class QAController:
         self, command_parser: CommandParser, question_bank: QuestionBank,
         search_engine: SearchEngine, evaluator: Evaluator,
         history_manager: HistoryManager, qa_agent: QAAgent,
+        agent_tools: QAAgent = None,
     ):
         """注入所有核心组件依赖。
 
@@ -42,7 +43,8 @@ class QAController:
             search_engine: 语义搜索引擎
             evaluator: 评分器
             history_manager: 历史记录管理器
-            qa_agent: LangChain Agent
+            qa_agent: LangChain Agent（无工具，用于结构化任务）
+            agent_tools: LangChain Agent（带工具，用于自由对话和追问），若为 None 则回退到 qa_agent
         """
         self.cp = command_parser
         self.bank = question_bank
@@ -50,6 +52,7 @@ class QAController:
         self.evaluator = evaluator
         self.history = history_manager
         self.agent = qa_agent
+        self.agent_tools = agent_tools or qa_agent
 
     def process_input(self, text: str, state: dict, stream: bool = False) -> dict:
         """顶层入口：解析命令或路由到自由文本处理器。
@@ -282,8 +285,8 @@ class QAController:
             return self._handle_editing(text, state)
         else:
             if stream:
-                return {"type": "message", "_stream": self.agent.stream(text)}
-            msg = self.agent.invoke(text)
+                return {"type": "message", "_stream": self.agent_tools.stream(text)}
+            msg = self.agent_tools.invoke(text)
             return {"type": "message", "message": msg}
 
     def _evaluate(self, user_answer: str, state: dict) -> dict:
@@ -351,9 +354,9 @@ class QAController:
                     round_num=round_num,
                 )
             return {"type": "message", "_stream": self._buffered_stream(
-                self.agent.stream(prompt), _after_follow_up)}
+                self.agent_tools.stream(prompt), _after_follow_up)}
 
-        response = self.agent.invoke(prompt)
+        response = self.agent_tools.invoke(prompt)
         self.history.add_follow_up_record(
             parent_id=parent_id, domain=domain, question_id=qid,
             question=text, user_input=text, response=response,
