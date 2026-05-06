@@ -358,6 +358,33 @@ chromadb>=0.5
 pyyaml>=6.0
 python-dotenv>=1.0
 ```
+## 界面展示
+初始界面
+<img width="1913" height="570" alt="Snipaste_2026-05-06_18-24-36" src="https://github.com/user-attachments/assets/4ab7a122-1120-4b73-bc9e-cc2079b8c3d9" />
+
+常用指令
+<img width="1249" height="294" alt="Snipaste_2026-05-06_18-25-13" src="https://github.com/user-attachments/assets/7941fcb6-c117-4bd6-a7a1-791ffabe0b93" />
+<img width="1122" height="304" alt="Snipaste_2026-05-06_18-24-58" src="https://github.com/user-attachments/assets/a3c77c7d-3391-4703-8691-42f9da308c1c" />
+<img width="1107" height="362" alt="Snipaste_2026-05-06_18-24-50" src="https://github.com/user-attachments/assets/db31d1ec-681d-4cc1-97a2-8a623c006807" />
+
+工具调用
+<img width="1180" height="407" alt="Snipaste_2026-05-06_18-25-19" src="https://github.com/user-attachments/assets/dce12364-42f5-4e36-b63e-d7e754f33786" />
+<img width="1232" height="443" alt="Snipaste_2026-05-06_18-25-28" src="https://github.com/user-attachments/assets/ccc42e82-24b5-421e-b107-c73cfefa1b23" />
+
+题库管理
+<img width="1022" height="755" alt="Snipaste_2026-05-06_18-29-34" src="https://github.com/user-attachments/assets/e223a535-a894-4d04-9c5e-0a39db6b5393" />
+
+历史记录
+<img width="697" height="909" alt="Snipaste_2026-05-06_18-29-05" src="https://github.com/user-attachments/assets/6abff071-543e-4070-bedc-a30adfc205d7" />
+<img width="1872" height="902" alt="Snipaste_2026-05-06_18-25-47" src="https://github.com/user-attachments/assets/0d874c96-8a9b-4f1b-8b4d-0848fdcef67a" />
+
+答题模式
+<img width="932" height="842" alt="Snipaste_2026-05-06_18-28-22" src="https://github.com/user-attachments/assets/82b35616-4d9e-4b92-b655-166331aa95d8" />
+
+答题追问<img width="977" height="849" alt="Snipaste_2026-05-06_18-28-28" src="https://github.com/user-attachments/assets/d8092a31-eb2d-41b3-8c2f-afac6d74ff09" />
+
+
+
 
 ## License
 
