@@ -27,7 +27,7 @@ def _init_session() -> dict:
 
 
 def _build_controller():
-    """组装 QAController：获取共享实例，注入各依赖组件，构建 agent 并返回."""
+    """组装 QAController：获取共享实例，注入各依赖组件，构建双 agent 并返回."""
     # 从 shared_state 获取全局共享的 bank、search、LLM、embedding、config
     bank, search, llm_client, emb_client, config = init_shared()
 
@@ -36,9 +36,18 @@ def _build_controller():
     cp = CommandParser(config.load("commands"))
 
     system_prompt = PromptUtils.load("qa_system")
-    agent = QAAgent(llm_client.get_llm(), system_prompt)
+    llm = llm_client.get_llm()
 
-    return QAController(cp, bank, search, evaluator, history, agent)
+    # 无工具 Agent：用于结构化任务（意图分类、JSON 格式化）
+    agent = QAAgent(llm, system_prompt)
+
+    # 带工具 Agent：用于自由对话和追问
+    from ..core.agent_tools import create_tools
+    agent_tools = QAAgent(llm, system_prompt)
+    for func in create_tools(bank, search, history):
+        agent_tools.register_tool(func)
+
+    return QAController(cp, bank, search, evaluator, history, agent, agent_tools=agent_tools)
 
 
 def render():

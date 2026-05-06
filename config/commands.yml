@@ -3,13 +3,13 @@ commands:
     trigger: /Q
     description: 开启问答模式
     usage: |
-      /Q                        - Agent 询问意图
-      /Q <领域名>               - 从该领域出题
-      /Q <领域名> random        - 从该领域随机 1 题
-      /Q <领域名> random N      - 从该领域随机 N 题
-      /Q <关键词>               - 语义搜索最相关 1 题
-      /Q <关键词> random N      - 语义搜索 Top-K，随机 N 题
-      /Q random N               - 从全题库随机 N 题
+      /Q - Agent 询问意图
+      /Q <领域名> - 从该领域出题
+      /Q <领域名> random - 从该领域随机 1 题
+      /Q <领域名> random N - 从该领域随机 N 题
+      /Q <关键词> - 语义搜索最相关 1 题
+      /Q <关键词> random N- 语义搜索 Top-K，随机 N 题
+      /Q random N-  从全题库随机 N 题
   list_domains:
     trigger: /list_domains
     description: 查看所有领域
