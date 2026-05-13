@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 venv/
 .env
+.streamlit/secrets.toml
 logs/
 data/chroma
 .claude/settings.local.json

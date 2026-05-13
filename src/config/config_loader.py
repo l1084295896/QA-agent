@@ -12,11 +12,20 @@ class ConfigLoader:
     """Load YAML configs with ${ENV_VAR} substitution. Caches loaded configs."""
 
     def __init__(self, config_dir: str = "config"):
-        # 加载 .env 文件中的环境变量，使其可通过 os.environ 访问。
         load_dotenv()
+        self._sync_streamlit_secrets()
         self.config_dir = Path(config_dir)
-        # 配置缓存：key 为配置名（不含 .yml），value 为解析后的配置 dict。
         self._cache: dict[str, dict] = {}
+
+    @staticmethod
+    def _sync_streamlit_secrets():
+        try:
+            import streamlit as st
+            for key, value in st.secrets.items():
+                if value is not None:
+                    os.environ[key] = str(value) if not isinstance(value, dict) else os.environ.get(key, "")
+        except Exception:
+            pass
 
     def _resolve_env_vars(self, value):
         """递归替换值中的所有 ${ENV_VAR} 占位符为对应的环境变量值。
