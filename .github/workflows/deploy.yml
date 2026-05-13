@@ -1,0 +1,20 @@
+name: Deploy Streamlit App to HF Space
+
+on:
+  push:
+    branches: [ "main" ]     # 当 main 分支有代码推送时自动触发
+  workflow_dispatch:          # 同时允许你手动触发
+
+jobs:
+  sync-to-hub:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        # 请务必替换下面命令中的 "你的用户名" 和 "你的Space名称"
+        run: git push --force https://lpy9911:${{ secrets.HF_TOKEN }}@huggingface.co/spaces/lpy9911/qa main
