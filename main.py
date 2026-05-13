@@ -2,5 +2,4 @@
 # streamlit run main.py
 from src.ui.qa_page import render
 
-if __name__ == "__main__":
-    render()
+render()
