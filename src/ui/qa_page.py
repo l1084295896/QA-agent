@@ -60,7 +60,10 @@ def render():
         try:
             st.session_state.controller = _build_controller()
         except Exception as e:
+            import traceback
             st.error(f"初始化失败: {e}")
+            with st.expander("错误详情"):
+                st.code(traceback.format_exc())
             return
 
     ctrl: QAController = st.session_state.controller
