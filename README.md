@@ -1,3 +1,15 @@
+---
+title: QA Agent
+emoji: 📝
+colorFrom: blue
+colorTo: green
+sdk: streamlit
+sdk_version: 1.57.0
+python_version: "3.12"
+app_file: main.py
+pinned: false
+---
+
 # Q&A Agent — 智能问答学习助手
 
 基于 Python + LangChain + Streamlit 构建的 AI 学习助手，支持智能选题、自动评分、多维度解析和题库管理。
